@@ -1,0 +1,65 @@
+name: Check NonsPlayer Android Build
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Setup pnpm
+        shell: pwsh
+        run: npm install --global pnpm
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android
+
+      - name: Check Android build entry
+        shell: pwsh
+        run: |
+          Write-Host "Checking repository files..."
+
+          if (!(Test-Path "scripts/bootstrap-android.py")) {
+            throw "Android bootstrap script not found."
+          }
+
+          if (!(Test-Path "scripts/android.ps1")) {
+            throw "Android PowerShell build script not found."
+          }
+
+          $package = Get-Content "app/package.json" -Raw |
+            ConvertFrom-Json
+
+          Write-Host "Available app scripts:"
+          $package.scripts | Format-List
+
+          if (!$package.scripts.'build:android') {
+            throw "The documented build:android command is absent from app/package.json."
+          }
+
+          Write-Host "Android build entry verified."
