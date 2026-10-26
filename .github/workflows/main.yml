@@ -1,4 +1,4 @@
-name: Check NonsPlayer Android Build
+name: Build NonsPlayer Android APK
 
 on:
   workflow_dispatch:
@@ -7,8 +7,9 @@ permissions:
   contents: read
 
 jobs:
-  check:
+  build-android:
     runs-on: windows-latest
+    timeout-minutes: 120
 
     steps:
       - name: Checkout source
@@ -28,7 +29,7 @@ jobs:
         shell: pwsh
         run: npm install --global pnpm
 
-      - name: Setup Java
+      - name: Setup Java 21
         uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -39,27 +40,24 @@ jobs:
         with:
           targets: aarch64-linux-android
 
-      - name: Check Android build entry
+      - name: Install project dependencies
         shell: pwsh
-        run: |
-          Write-Host "Checking repository files..."
+        run: pnpm install --frozen-lockfile
 
-          if (!(Test-Path "scripts/bootstrap-android.py")) {
-            throw "Android bootstrap script not found."
-          }
+      - name: Bootstrap Android SDK and NDK
+        shell: pwsh
+        run: python scripts/bootstrap-android.py --accept-licenses
 
-          if (!(Test-Path "scripts/android.ps1")) {
-            throw "Android PowerShell build script not found."
-          }
+      - name: Build and verify APK
+        shell: pwsh
+        run: pnpm --dir app build:android
 
-          $package = Get-Content "app/package.json" -Raw |
-            ConvertFrom-Json
-
-          Write-Host "Available app scripts:"
-          $package.scripts | Format-List
-
-          if (!$package.scripts.'build:android') {
-            throw "The documented build:android command is absent from app/package.json."
-          }
-
-          Write-Host "Android build entry verified."
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: NonsPlayer-Android-ARM64
+          path: |
+            .local/android/Nons-*-android-arm64-debug.apk
+            .local/android/Nons-*-android-arm64-debug.apk.sha256
+          if-no-files-found: error
+          retention-days: 7
